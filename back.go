@@ -17,9 +17,11 @@ import ( // {{{
 
 type Meta struct { // {{{
 	flag rune
-	size int64
+
 	hash string
 	name string
+
+	size int64
 	time time.Time
 }
 
@@ -255,28 +257,60 @@ func back(srcmeta []*Meta, dstmeta []*Meta, action bool) error { // {{{
 }
 
 // }}}
-func show(meta []*Meta, file string, base string) ([]*Meta, error) { // {{{
 
-	err := os.Chdir(file)
-	if err != nil {
-		return nil, err
+func sum(file string) string { // {{{
+	if f, e := os.Open(file); e == nil {
+		defer f.Close()
+
+		h := md5.New()
+		if _, e := io.Copy(h, f); e == nil {
+			return hex.EncodeToString(h.Sum(nil))
+		}
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
+	return ""
+}
 
-	if base == "" {
-		base = cwd
-		cwd = ""
-	} else {
-		cwd = cwd[len(base)+1:] + "/"
-	}
+// }}}
+func diff(srcmeta map[string]*Meta, dstmeta map[string]*Meta) { // {{{
+	for k, v := range srcmeta {
+		if vv, ok := dstmeta[k]; ok {
+			if v.time.After(vv.time) {
+				v.flag = '>'
+				vv.flag = '>'
+			} else if v.time.Before(vv.time) {
+				v.flag = '<'
+				vv.flag = '<'
+			} else {
+				v.flag = '='
+				vv.flag = '='
+			}
 
-	list, err := ioutil.ReadDir("./")
-	if err != nil {
-		return nil, err
+			if v.size == vv.size {
+				v.hash = sum(path.Join(src, v.name))
+				vv.hash = sum(path.Join(dst, vv.name))
+				if v.hash == vv.hash {
+					v.flag = '='
+					vv.flag = '='
+				} else {
+					if v.flag == '=' {
+						v.flag = '>'
+						vv.flag = '>'
+					}
+				}
+			}
+		} else {
+			v.flag = '+'
+		}
+	}
+}
+
+// }}}
+func scan(meta map[string]*Meta, file string, base string) (m map[string]*Meta, e error) { // {{{
+
+	list, e := ioutil.ReadDir(file)
+	if e != nil {
+		return
 	}
 
 	for _, v := range list {
@@ -284,50 +318,67 @@ func show(meta []*Meta, file string, base string) ([]*Meta, error) { // {{{
 			continue
 		}
 
+		cwd := path.Join(file, v.Name())
+
 		if v.IsDir() {
 			if v.Name() != "." && v.Name() != ".." {
-				if meta, err = show(meta, v.Name(), base); err != nil {
-					return nil, err
+				if meta, e = scan(meta, cwd, base); e != nil {
+					return nil, e
 				}
 			}
 			continue
 		}
 
-		f, err := os.Open(v.Name())
-		if err != nil {
-			return nil, err
-		}
+		cwd = cwd[len(base):]
 
 		m := new(Meta)
+
+		m.flag = '-'
+
 		m.size = v.Size()
 		allsize += m.size
 		if m.size > maxsize {
 			maxsize = m.size
 		}
 
-		if !*istime {
-			h := md5.New()
-			if _, err := io.Copy(h, f); err != nil {
-				f.Close()
-				return nil, err
-			}
-			b := h.Sum(nil)
-			fmt.Print(".")
-			m.hash = hex.EncodeToString(b)
-		}
-
-		m.flag = '-'
 		m.time = v.ModTime()
-		m.name = fmt.Sprintf("%s%s", cwd, v.Name())
-		meta = append(meta, m)
-		f.Close()
-	}
+		m.name = fmt.Sprintf("%s", cwd)
+		meta[cwd] = m
+		fmt.Print(".")
 
-	if err = os.Chdir("../"); err != nil {
-		return nil, err
 	}
 
 	return meta, nil
+}
+
+// }}}
+func action(done bool, srcmeta map[string]*Meta, dstmeta map[string]*Meta) { // {{{
+	for _, v := range srcmeta {
+		if v.flag == '+' {
+			fmt.Printf("%c %d %10d %s\n", v.flag, v.time.Unix(), v.size, v.name)
+		}
+	}
+
+	for _, v := range srcmeta {
+		if v.flag == '>' {
+			fmt.Printf("%c %d %10d %s\n", v.flag, v.time.Unix(), v.size, v.name)
+		}
+	}
+	for _, v := range srcmeta {
+		if v.flag == '=' {
+			fmt.Printf("%c %d %10d %s\n", v.flag, v.time.Unix(), v.size, v.name)
+		}
+	}
+	for _, v := range srcmeta {
+		if v.flag == '<' {
+			fmt.Printf("%c %d %10d %s\n", v.flag, v.time.Unix(), v.size, v.name)
+		}
+	}
+	for _, v := range dstmeta {
+		if v.flag == '-' {
+			fmt.Printf("%c %d %10d %s\n", v.flag, v.time.Unix(), v.size, v.name)
+		}
+	}
 }
 
 // }}}
@@ -357,10 +408,9 @@ func main() { // {{{
 	os.Chdir(old)
 	dst = flag.Arg(1)
 	if _, err := os.Stat(dst); err != nil {
-		fmt.Printf("%s dst path %s doesn't exist\n", time.Now().Format("15:04:05"), dst)
 		err = os.MkdirAll(dst, os.ModePerm)
 		err_exit(err, "%s", err)
-		fmt.Printf("%s create dst path %s\n", time.Now().Format("15:04:05"), dst)
+		fmt.Printf("%s create dst path: %s\n", time.Now().Format("15:04:05"), dst)
 	}
 
 	if e := os.Chdir(flag.Arg(1)); e != nil {
@@ -372,26 +422,25 @@ func main() { // {{{
 
 	allsize = 0
 	fmt.Printf("%s sum src(%s): ", time.Now().Format("15:04:05"), src)
-	srcmeta, err := show(make([]*Meta, 0), src, "")
+	srcmeta, err := scan(make(map[string]*Meta, 0), src, src)
 	err_exit(err, "%s", err)
 	fmt.Printf(" %d files %s bytes\n", len(srcmeta), sizes(allsize))
 
 	allsize = 0
 	fmt.Printf("%s sum dst(%s): ", time.Now().Format("15:04:05"), dst)
-	dstmeta, err := show(make([]*Meta, 0), dst, "")
+	dstmeta, err := scan(make(map[string]*Meta, 0), dst, dst)
 	err_exit(err, "%s", err)
 	fmt.Printf(" %d files %s bytes\n", len(dstmeta), sizes(allsize))
+
+	diff(srcmeta, dstmeta)
 
 	for maxsize > 0 {
 		maxbit++
 		maxsize /= 10
 	}
-
 	allsize = 0
-	err = back(srcmeta, dstmeta, false)
-	err_exit(err, "%s", err)
-	err = back(srcmeta, dstmeta, true)
-	err_exit(err, "%s", err)
+	action(false, srcmeta, dstmeta)
+	action(true, srcmeta, dstmeta)
 }
 
 // }}}
