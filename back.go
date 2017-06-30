@@ -1,5 +1,5 @@
-package main
-
+package main // {{{
+// }}}
 import ( // {{{
 	"crypto/md5"
 	"encoding/hex"
@@ -14,6 +14,17 @@ import ( // {{{
 )
 
 // }}}
+
+type Meta struct { // {{{
+	flag rune
+	size int64
+	hash string
+	name string
+	time time.Time
+}
+
+// }}}
+
 var ( // {{{
 	ishelp          = flag.Bool("help", false, "usage: back [options] src dst")
 	istime          = flag.Bool("time", false, "compare files by time stamp")
@@ -33,15 +44,7 @@ var ( // {{{
 )
 
 // }}}
-type Meta struct { // {{{
-	flag rune
-	size int64
-	hash string
-	name string
-	time time.Time
-}
 
-// }}}
 func confirm(format string, msg ...interface{}) bool { // {{{
 	fmt.Printf(format, msg...)
 
@@ -68,6 +71,7 @@ func sizes(s int64) string { // {{{
 }
 
 // }}}
+
 func save(size int64, src string, dst string) (err error) { // {{{
 	dir := path.Dir(dst)
 	if _, err = os.Stat(dir); err != nil {
@@ -327,6 +331,7 @@ func show(meta []*Meta, file string, base string) ([]*Meta, error) { // {{{
 }
 
 // }}}
+
 func err_exit(err error, format string, str ...interface{}) { // {{{
 	if err != nil {
 		fmt.Printf(format, str)
@@ -341,21 +346,16 @@ func main() { // {{{
 		os.Exit(1)
 	}
 
-	cwd, err := os.Getwd()
-	err_exit(err, "%s", err)
-	if path.IsAbs(flag.Arg(0)) {
-		src = path.Clean(flag.Arg(0))
+	old, _ := os.Getwd()
+	if e := os.Chdir(flag.Arg(0)); e != nil {
+		fmt.Printf("src %s : %s\n", flag.Arg(0), e)
+		os.Exit(1)
 	} else {
-		src = path.Clean(path.Join(cwd, flag.Arg(0)))
+		src, _ = os.Getwd()
 	}
-	_, err = os.Stat(src)
-	err_exit(err, "src path %s doesn't exist\n", src)
 
-	if path.IsAbs(flag.Arg(1)) {
-		dst = path.Clean(flag.Arg(1))
-	} else {
-		dst = path.Clean(path.Join(cwd, flag.Arg(1)))
-	}
+	os.Chdir(old)
+	dst = flag.Arg(1)
 	if _, err := os.Stat(dst); err != nil {
 		fmt.Printf("%s dst path %s doesn't exist\n", time.Now().Format("15:04:05"), dst)
 		err = os.MkdirAll(dst, os.ModePerm)
@@ -363,14 +363,21 @@ func main() { // {{{
 		fmt.Printf("%s create dst path %s\n", time.Now().Format("15:04:05"), dst)
 	}
 
+	if e := os.Chdir(flag.Arg(1)); e != nil {
+		fmt.Printf("dst %s : %s\n", flag.Arg(1), e)
+		os.Exit(1)
+	} else {
+		dst, _ = os.Getwd()
+	}
+
 	allsize = 0
-	fmt.Printf("%s sum src: ", time.Now().Format("15:04:05"))
+	fmt.Printf("%s sum src(%s): ", time.Now().Format("15:04:05"), src)
 	srcmeta, err := show(make([]*Meta, 0), src, "")
 	err_exit(err, "%s", err)
 	fmt.Printf(" %d files %s bytes\n", len(srcmeta), sizes(allsize))
 
 	allsize = 0
-	fmt.Printf("%s sum dst: ", time.Now().Format("15:04:05"))
+	fmt.Printf("%s sum dst(%s): ", time.Now().Format("15:04:05"), dst)
 	dstmeta, err := show(make([]*Meta, 0), dst, "")
 	err_exit(err, "%s", err)
 	fmt.Printf(" %d files %s bytes\n", len(dstmeta), sizes(allsize))
