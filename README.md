@@ -10,7 +10,7 @@ there are five kinds file when backup or restore files:
 - **\- old** file only in *dstpath*
 
 
-## usage: back [option] *srcpath* *dstpath*
+## usage: back [options] *srcpath* *dstpath*
 1. **-save**
 copy **new(+)** and **newer(>)** files from *srcpath* to *dstpath*
 1. **-backup**
