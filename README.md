@@ -1,7 +1,7 @@
 # back
 backup &amp; restore important file 用于文件的备份与恢复
 
-there are five kinds file when backup or restore files;
+there are five kinds file when backup or restore files:
 
 - **\+ new** file only in *srcpath*
 - **\> newer** file in *srcpath* than in *dstpath*
