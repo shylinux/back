@@ -24,14 +24,13 @@ type Meta struct { // {{{
 
 // }}}
 var ( // {{{
-	ishelp = flag.Bool("help", false, "usage: back [options] src dst")
+	ishelp  = flag.Bool("help", false, "usage: back [options] srcpath dstpath")
+	istime  = flag.Bool("time", false, "compare files only by time stamp, don't use hash ")
+	isforce = flag.Bool("force", false, "copy or move files without confirm ")
 
-	issave   = flag.Bool("save", false, "save new(+) and newer(>) files from src to dst")
-	isbackup = flag.Bool("backup", false, "backup all(+ > <) files from src to dst")
-	issame   = flag.Bool("same", false, "save all(+ > <) from src to dst delete rest(-) from dst")
-
-	istime  = flag.Bool("time", false, "compare files only by time stamp")
-	isforce = flag.Bool("force", false, "force copy with no confirm ")
+	issave   = flag.Bool("save", false, "copy new(+) and newer(>) files from srcpath to dstpath")
+	isbackup = flag.Bool("backup", false, "copy all(+ > <) files from srcpath to dstpath")
+	issame   = flag.Bool("same", false, "copy all(+ > <) files from srcpath to dstpath, move old(-) from dstpath to dstpath/trash")
 
 	sumsize int64
 	allsize int64
