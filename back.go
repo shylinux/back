@@ -270,8 +270,15 @@ func action(done bool, srcmeta map[string]*Meta, dstmeta map[string]*Meta) (e er
 		if v.flag == '-' {
 			if *issame {
 				if done {
+					trash := path.Join(dst, "trash")
+					if _, e = os.Stat(trash); e != nil {
+						os.MkdirAll(trash, 0776)
+					}
+
+					trash = path.Join(trash, fmt.Sprintf("%d-%s", time.Now().Unix(), path.Base(v.name)))
+
 					if confirm("remove %s from %s y(yes/no):", v.name, dst) {
-						if e = os.Remove(path.Join(dst, v.name)); e != nil {
+						if e = os.Rename(path.Join(dst, v.name), trash); e != nil {
 							fmt.Printf("%s", e)
 						}
 					}
