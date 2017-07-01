@@ -296,7 +296,7 @@ func main() { // {{{
 	var e error
 
 	if flag.Parse(); flag.NArg() != 2 {
-		fmt.Printf("usage %s [options] src dst\n", os.Args[0])
+		fmt.Printf("usage %s [options] srcpath dstpath\n", os.Args[0])
 		os.Exit(1)
 	}
 
